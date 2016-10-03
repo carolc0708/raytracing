@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>//
 
 #include "math-toolkit.h"
 #include "primitives.h"
@@ -453,98 +452,6 @@ static unsigned int ray_color(const point3 e, double t,
     return 1;
 }
 
-void *thread_function(void *arg_)
-{
-    const Thread_Arg *arg = (const Thread_Arg *)arg_;
-
-    color object_color = { 0.0, 0.0, 0.0 };
-    idx_stack stk;
-
-    for(int j = arg->start_ ; j < arg->end_ ; j += THREAD_NUM)
-    {
-	for(int i = 0 ; i < arg->tc_->width ; i ++)
-	{
-		double r = 0, g = 0, b = 0;
-		for (int s = 0; s < SAMPLES; s++) {
-                idx_stack_init(&stk);
-                rayConstruction(arg->tc_->d, arg->tc_->u, arg->tc_->v, arg->tc_->w,
-                                i * arg->tc_->factor + s / arg->tc_->factor,
-                                j * arg->tc_->factor + s % arg->tc_->factor,
-                                arg->tc_->view,
-                                arg->tc_->width * arg->tc_->factor, arg->tc_->height * arg->tc_->factor);
-                if (ray_color(arg->tc_->view->vrp, 0.0, arg->tc_->d, &stk, arg->tc_->rectangulars, arg->tc_->spheres, arg->tc_->lights, object_color, MAX_REFLECTION_BOUNCES))                  {             
-                    r += object_color[0];
-                    g += object_color[1];
-                    b += object_color[2];
-                }
-
-		else
-                {
-                    r += arg->tc_->background_color[0];
-                    g += arg->tc_->background_color[1];
-                    b += arg->tc_->background_color[2];
-                }
-                arg->tc_->pixels[((i + (j * arg->tc_->width)) * 3) + 0] = r * 255 / SAMPLES;
-                arg->tc_->pixels[((i + (j * arg->tc_->width)) * 3) + 1] = g * 255 / SAMPLES;
-                arg->tc_->pixels[((i + (j * arg->tc_->width)) * 3) + 2] = b * 255 / SAMPLES;
-	} 
-      }
-   }
-}
-
-void parallel(uint8_t *pixels, double *background_color, rectangular_node rectangulars, sphere_node spheres, light_node lights, const viewpoint *view, int width, int height, double* u, double* v, double* w, double* d, int factor)
-{
-	pthread_t pt_id[THREAD_NUM];
-	Thread_Content *tc= (Thread_Content*) malloc(sizeof(Thread_Content));
-	Thread_Arg *arg[THREAD_NUM];
-	void *ret;
-	
-	//
-	tc->pixels = pixels;
-        tc->background_color = background_color;
-        tc->rectangulars = rectangulars;
-        tc->spheres = spheres;
-        tc->lights = lights;
-        tc->view = view;
-
-        tc->width = width;
-        tc->height = height;
-
-        tc->u = u;
-        tc->v = v;
-        tc->w = w;
-        tc->d = d;
-
-	tc->factor = factor;
-	//
-	for(int i=0 ; i<THREAD_NUM ; i++)
-	{
-		arg[i] = (Thread_Arg *) malloc(sizeof(Thread_Arg));
-		arg[i]->tc_ = tc;
-		arg[i]->start_ = i;
- 		arg[i]->end_ = height;
-	}
-
-        for(int i=0; i<THREAD_NUM; i++) 
-        {
-            if(pthread_create(pt_id+i, NULL, thread_function, arg[i]) != 0)
-            {
-                printf("Thread created fail.\n");
-                exit(1);
-             }	 	
-   	}
-
-        for(int i=0; i<THREAD_NUM; i++) 
-          pthread_join(pt_id[i], &ret);
-	
-	//free memory
-/*	for(int i=0 ; i<THREAD_NUM ; i++)
-	{
-	     free(arg[i]->tc_);
-	     free(arg[i]);
-	}	
-*/	
-}
 /* @param background_color this is not ambient light */
 void raytracing(uint8_t *pixels, color background_color,
                 rectangular_node rectangulars, sphere_node spheres,
@@ -552,9 +459,40 @@ void raytracing(uint8_t *pixels, color background_color,
                 int width, int height)
 {
     point3 u, v, w, d;
+    color object_color = { 0.0, 0.0, 0.0 };
 
     /* calculate u, v, w */
     calculateBasisVectors(u, v, w, view);
 
-    parallel(pixels, background_color, rectangulars, spheres, lights, view, width, height, u, v, w, d, sqrt(SAMPLES));
+    idx_stack stk;
+
+    int factor = sqrt(SAMPLES);
+     for (int j = 0; j < height; j++) {
+        for (int i = 0; i < width; i++) {
+            double r = 0, g = 0, b = 0;
+            /* MSAA */
+            for (int s = 0; s < SAMPLES; s++) {
+                idx_stack_init(&stk);
+                rayConstruction(d, u, v, w,
+                                i * factor + s / factor,
+                                j * factor + s % factor,
+                                view,
+                                width * factor, height * factor);
+                if (ray_color(view->vrp, 0.0, d, &stk, rectangulars, spheres,
+                              lights, object_color,
+                              MAX_REFLECTION_BOUNCES)) {
+                    r += object_color[0];
+                    g += object_color[1];
+                    b += object_color[2];
+                } else {
+                    r += background_color[0];
+                    g += background_color[1];
+                    b += background_color[2];
+                }
+                pixels[((i + (j * width)) * 3) + 0] = r * 255 / SAMPLES;
+                pixels[((i + (j * width)) * 3) + 1] = g * 255 / SAMPLES;
+                pixels[((i + (j * width)) * 3) + 2] = b * 255 / SAMPLES;
+            }
+        }
+    }
 }

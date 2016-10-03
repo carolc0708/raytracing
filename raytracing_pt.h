@@ -4,7 +4,7 @@
 #include "objects.h"
 #include <stdint.h>
 
-#define THREAD_NUM 512
+#define THREAD_NUM 128
 
 typedef struct THREAD_CONTENT{
 

@@ -517,7 +517,7 @@ void parallel(uint8_t *pixels, double *background_color, rectangular_node rectan
 
 	tc->factor = factor;
 	//
-	for(int i=0 ; i<THREAD_NUM ; i++)
+	for(int i = 0 ; i < THREAD_NUM ; i++)
 	{
 		arg[i] = (Thread_Arg *) malloc(sizeof(Thread_Arg));
 		arg[i]->tc_ = tc;
@@ -534,16 +534,9 @@ void parallel(uint8_t *pixels, double *background_color, rectangular_node rectan
              }	 	
    	}
 
-        for(int i=0; i<THREAD_NUM; i++) 
-          pthread_join(pt_id[i], &ret);
+    for(int i=0; i<THREAD_NUM; i++) 
+        pthread_join(pt_id[i], &ret);
 	
-	//free memory
-/*	for(int i=0 ; i<THREAD_NUM ; i++)
-	{
-	     free(arg[i]->tc_);
-	     free(arg[i]);
-	}	
-*/	
 }
 /* @param background_color this is not ambient light */
 void raytracing(uint8_t *pixels, color background_color,
